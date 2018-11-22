@@ -27,10 +27,8 @@ import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SimpleFunction;
@@ -43,8 +41,6 @@ import com.google.api.services.bigquery.model.TableSchema;
 import com.google.api.services.bigquery.model.TableRow;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.beam.sdk.transforms.SerializableFunction;
 
 /**
  * An example that counts words in Shakespeare and includes Beam best practices.
@@ -155,36 +151,6 @@ public class WordCount {
     }
   }
 
-  public static class CountWordsBq
-          extends PTransform<PCollection<String>, PCollection<String>> {
-    @Override
-    public PCollection<String> expand(PCollection<String> lines) {
-
-      // Convert lines of text into individual words.
-      PCollection<String> words = lines.apply(ParDo.of(new ExtractWordsFn()));
-
-      // Count the number of times each word occurs.
-      // PCollection<KV<String, Long>> wordCounts = words.apply(Count.perElement());
-
-      return words;
-    }
-  }
-
-  public static class CountWordsBq2
-          extends PTransform<PCollection<String>, PCollection<KV<String, Long>>> {
-    @Override
-    public PCollection<KV<String, Long>> expand(PCollection<String> lines) {
-
-      // Convert lines of text into individual words.
-      PCollection<String> words = lines.apply(ParDo.of(new ExtractWordsFn()));
-
-      // Count the number of times each word occurs.
-      PCollection<KV<String, Long>> wordCounts = words.apply(Count.perElement());
-
-      return wordCounts;
-    }
-  }
-
   /**
    * Options supported by {@link WordCount}.
    *
@@ -212,7 +178,7 @@ public class WordCount {
     String getOutput();*/
 
     @Description("Output BigQuery table <project_id>:<dataset_id>.<table_id>")
-    @Default.String("<PROJECT_ID>:<DATASET>.<TABLE>")
+    @Default.String("test-dsk-develop:bqml.dataflow")
     String getOutput();
 
     void setOutput(String value);
@@ -230,29 +196,8 @@ public class WordCount {
     // Concepts #2 and #3: Our pipeline applies the composite CountWords transform, and passes the
     // static FormatAsTextFn() to the ParDo transform.
     p.apply("ReadLines", TextIO.read().from(options.getInputFile()))
-        //.apply(new CountWords())
-        //.apply(MapElements.via(new FormatAsTextFn()))
-            /*.apply("WordsPerLine", ParDo.of(new DoFn<String, String>() {
-              @ProcessElement
-              public void processElement(ProcessContext c) throws Exception {
-                System.out.println("WordsPerLine:" + c.element());
-                String line = c.element();
-                c.output(line);
-              }
-            }))*/
-            .apply(new CountWordsBq2())
+            .apply(new CountWords())
             //.apply(MapElements.via(new FormatAsTextFn()))
-            /*.apply("ToBQRow", ParDo.of(new DoFn<String, TableRow>() {
-              @ProcessElement
-              public void processElement(ProcessContext c) throws Exception {
-                TableRow row = new TableRow();
-
-                //row.set("word", c.element());
-                //row.set("count", "1");
-                row.set("word", c.element().split(":")[0]);
-                row.set("count", c.element().split(":")[1]);
-                c.output(row);
-              }*/
             .apply("ToBQRow", ParDo.of(new DoFn<KV<String, Long>, TableRow>() {
               @ProcessElement
                 public void processElement(ProcessContext c) {
